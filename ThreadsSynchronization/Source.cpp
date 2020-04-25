@@ -2,7 +2,7 @@
 #include <windows.h>
 
 DWORD WINAPI maker(LPVOID param) {
-	int index = *(int*)param;
+	int index = (int)param;
 	std::cout << index << '\n';
 	return 0;
 }
@@ -23,12 +23,17 @@ int main() {
 	HANDLE hThread;
 	DWORD IDThread;
 
+	HANDLE* threads = new HANDLE[number_of_threads];
+
 	for (int i = 0; i < number_of_threads; i++) {
-		hThread = CreateThread(NULL, 0, maker, &i, 0, &IDThread);
-		if (hThread) {
-			WaitForSingleObject(hThread, INFINITY);
-			CloseHandle(hThread);
-		}
-		else std::cout << "no";
+		threads[i] = CreateThread(NULL, 0, maker, (LPVOID)i, 0, &IDThread);
+		if (!threads[i]) std::cout << "Not created!\n";
 	}
+
+	WaitForMultipleObjects(number_of_threads, threads, TRUE, INFINITE);
+
+	for (int i = 0; i < number_of_threads; i++)
+		CloseHandle(threads[i]);
+
+	std::cout << "Finishing...\n";
 }
