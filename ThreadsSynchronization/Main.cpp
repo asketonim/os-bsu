@@ -1,38 +1,35 @@
 #include <iostream>
 #include <windows.h>
+using namespace std;
 
-struct Params {
-	int length;
-	int index;
-};
 
 CRITICAL_SECTION csArray;
-CRITICAL_SECTION csConsole;
 
 HANDLE* stopEvents;
 HANDLE* continueEvents;
 
 bool TERMINATE;
+
+int initial_size;
+
 int* initial_array;
 int* thread_indices;
-Params* param_array;
-
 
 DWORD WINAPI marker(void* param);
 
+
 int main() {
 	TERMINATE = false;
-	int length;
-	std::cout << "Enter array length: ";
-	std::cin >> length;
+	cout << "Enter array length: ";
+	cin >> initial_size;
 
-	initial_array = new int[length];
-	for (int i = 0; i < length; i++)
+	initial_array = new int[initial_size];
+	for (int i = 0; i < initial_size; i++)
 		initial_array[i] = 0;
 
 	int number_of_threads;
-	std::cout << "Enter number of threads: ";
-	std::cin >> number_of_threads;
+	cout << "Enter number of threads: ";
+	cin >> number_of_threads;
 
 	HANDLE* threads = new HANDLE[number_of_threads];
 
@@ -40,59 +37,68 @@ int main() {
 	continueEvents = new HANDLE[number_of_threads];
 
 	thread_indices = new int[number_of_threads];
-	param_array = new Params[number_of_threads];
 
 	for (int i = 0; i < number_of_threads; i++) {
 		stopEvents[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
 		continueEvents[i] = CreateEvent(NULL, TRUE, FALSE, NULL);
 	}
 
-	InitializeCriticalSection(&csConsole);
-	InitializeCriticalSection(&csArray);
 	for (int i = 0; i < number_of_threads; i++) {
-		param_array[i].length = length;
-		param_array[i].index = i + 1;
-		threads[i] = CreateThread(NULL, 0, marker, &param_array[i], 0, NULL);
-		if (!threads[i]) std::cout << "Not created!\n";
+		thread_indices[i] = i + 1;
+		threads[i] = CreateThread(NULL, 0, marker, &thread_indices[i], 0, NULL);
+		if (!threads[i]) cout << "Not created!\n";
 	}
 
-	WaitForMultipleObjects(number_of_threads, stopEvents, TRUE, INFINITE);
+	InitializeCriticalSection(&csArray);
+	int have_threads = number_of_threads;
+	while (have_threads) {
 
-	for (int i = 0; i < length; i++)
-		std::cout << initial_array[i] << " ";
-	std::cout << '\n';
+		for (int i = 0; i < number_of_threads; i++) {
+			if (thread_indices[i] != -1) ResetEvent(stopEvents[i]);
+			SetEvent(continueEvents[i]);
+		}
 
-	TERMINATE = true;
+		WaitForMultipleObjects(number_of_threads, stopEvents, TRUE, INFINITE);
 
-	std::cout << "Which thread do you want to terminate? (from 1 to " << number_of_threads << ")\n";
-	int thread_to_terminate;
-	do {
-		std::cin >> thread_to_terminate;
-		if (thread_to_terminate >= 1 && thread_to_terminate <= number_of_threads) break;
-		else std::cout << thread_to_terminate << " - is not valid!\n" << "Enter valid number, please...\n";
-	} while (true);
+		cout << "\nInitial array: ";
+		for (int i = 0; i < initial_size; i++)
+			cout << initial_array[i] << " ";
 
-	SetEvent(continueEvents[thread_to_terminate - 1]);
-	WaitForSingleObject(threads[thread_to_terminate - 1], INFINITE);
+		cout << "\nAvailable threads: ";
+		for (int i = 0; i < number_of_threads; i++) {
+			if (thread_indices[i] != -1) cout << thread_indices[i] << " ";
+		}
 
+		cout << "\nWhich thread do you want to terminate?\n";
+		int thread_to_terminate;
+		do {
+			cin >> thread_to_terminate;
 
-	for (int i = 0; i < length; i++)
-		std::cout << initial_array[i] << " ";
-	std::cout << '\n';
+			if (thread_to_terminate <= number_of_threads && thread_to_terminate > 0 && thread_indices[thread_to_terminate - 1] != -1) break;
+			cout << '\n' << thread_to_terminate << " doesn't exist!" << "\nPlease, enter existing thread: ";
+		} while (true);
+		cout << '\n';
 
-	for (int i = 0; i < number_of_threads; i++)
-		SetEvent(continueEvents[i]);
+		TERMINATE = true;
+	
+		SetEvent(continueEvents[thread_to_terminate - 1]);
+		WaitForSingleObject(threads[thread_to_terminate - 1], INFINITE);
+		CloseHandle(threads[thread_to_terminate - 1]);
+		thread_indices[thread_to_terminate - 1] = -1;
+		have_threads--;
 
-	WaitForMultipleObjects(number_of_threads, threads, TRUE, INFINITE);
+		TERMINATE = false;
+	}
 
-	DeleteCriticalSection(&csArray);
-	DeleteCriticalSection(&csConsole);
+	cout << "Result array: ";
+	for (int i = 0; i < initial_size; i++)
+		cout << initial_array[i] << " ";
+	cout << '\n';
 
 	for (int i = 0; i < number_of_threads; i++) {
-		CloseHandle(threads[i]);
 		CloseHandle(stopEvents[i]);
 		CloseHandle(continueEvents[i]);
 	}
 
-	std::cout << "Finishing...\n";
+	cout << "Finishing...\n";
 }
