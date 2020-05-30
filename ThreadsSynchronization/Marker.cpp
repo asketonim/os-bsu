@@ -33,6 +33,7 @@ DWORD WINAPI marker(void* param) {
 			initial_array[randomized] = index;
 			Sleep(5);
 			counter++;
+			randomized = rand();
 		}
 		LeaveCriticalSection(&csArray);
 		
